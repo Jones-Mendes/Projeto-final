@@ -43,7 +43,7 @@
            /* cores conforme limiar de 20 cm */
            const proximas = distBordas < 0.20;                 // 20 cm
            this.esfAzul.setAttribute('color', proximas ? '#4CAF50' : '#2196F3');
-           this.esfLaranja.setAttribute('color', proximas ? '#4CAF50' : '#FF9800');
+           this.esfLaranja.setAttribute('color', proximas ? '#4CAF50' : '##ef42f5');
            const corLinha = proximas ? '#F44336' : this.data.corLonge;
            /* linha tangente às superfícies */
            this.vDir.subVectors(this.pos2, this.pos1).normalize().multiplyScalar(RAIO_REAL);
