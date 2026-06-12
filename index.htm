@@ -2,82 +2,76 @@
 <html>
 <head>
  <meta charset="utf-8">
- <title>AR - feedback</title>
-     <!-- A-Frame + AR.js -->
-     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-     <style>
-       body {margin: 0; overflow: hidden}
-       #hud {position: fixed; top: 8px; left: 8px; padding: 4px 8px;
-         background: #0008; color: #fff; font: 14px/1 Arial; border-radius: 4px}
-     </style>
-     <script>
-       /* constantes físicas */
-       const TAMANHO_MARCADOR = 0.11;   // 11 cm → 0,11 m
-       const RAIO_REAL = 0.03;   // 3 cm  (Ø 6 cm)
-       const RAIO_UNIDADE = RAIO_REAL / TAMANHO_MARCADOR; // ≈ 0,273 u
-       AFRAME.registerComponent('link-esferas', {
-         schema: { corLonge: { default: '#FFC107' } },
-         init() {
-           this.pos1 = new THREE.Vector3(); this.pos2 = new THREE.Vector3();
-           this.vDir = new THREE.Vector3(); this.hud = document.getElementById('hud');
-           /* referências fixas */
-           this.esfAzul = document.querySelector('#s1'); 
-
-           this.esfLaranja = document.querySelector('#s2');
-         },
-         tick() {
-           /* se faltar marcador → esconde linha e limpa HUD */
-           if (!this.esfAzul.object3D.visible || !this.esfLaranja.object3D.visible) {
-             this.el.setAttribute('visible', false); this.hud.textContent = '-- cm';
-             return;
-           }
-           /* posições das esferas no mundo (1 u = 1 m) */
-           this.esfAzul.object3D.getWorldPosition(this.pos1);
-           this.esfLaranja.object3D.getWorldPosition(this.pos2);
-           /* distância real (m) */
-           const distMetros = this.pos1.distanceTo(this.pos2) * TAMANHO_MARCADOR;
-           const distBordas = distMetros - RAIO_REAL * 2;        // borda-a-borda
-           /* HUD em cm */
-           this.hud.textContent = (distBordas * 100).toFixed(1) + ' cm';
-           /* cores conforme limiar de 20 cm */
-           const proximas = distBordas < 0.20;                 // 20 cm
-           this.esfAzul.setAttribute('color', proximas ? '#4CAF50' : '#2196F3');
-           this.esfLaranja.setAttribute('color', proximas ? '#4CAF50' : '#FF9800');
-           const corLinha = proximas ? '#F44336' : this.data.corLonge;
-           /* linha tangente às superfícies */
-           this.vDir.subVectors(this.pos2, this.pos1).normalize().multiplyScalar(RAIO_REAL);
-           const ini = this.pos1.clone().add(this.vDir),
-             fim = this.pos2.clone().addScaledVector(this.vDir, -1);
-           this.el.setAttribute('line',
-             `start:${ini.x} ${ini.y} ${ini.z}; ` + `end:${fim.x} ${fim.y} ${fim.z}; ` +
-             `color:${corLinha}; opacity:0.9`);
-           this.el.setAttribute('visible', true);
-         }
-       });
-     </script>
+ <title>AR - Projeto Final</title>
+ <!-- A-Frame + AR.js -->
+ <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+ <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+ <style>
+   body {margin: 0; overflow: hidden}
+ </style>
 </head>
 <body>
- <span id="hud">-- cm</span>
  <a-scene embedded arjs="sourceType: webcam;">
    <a-entity camera></a-entity>
-   <!-- marcadores de 11 cm com esferas de 6 cm -->
+
+   <!-- marcador hiro com ZeAlencar.glb -->
    <a-marker preset="hiro" size="0.11">
-     <a-entity id="s1" gltf-model="ZeAlencar.glb" 
-            scale="0.5 0.5 0.5" 
-            position="0 0 0"></a-entity>
+     <a-entity id="s1" gltf-model="ZeAlencar.glb"
+               scale="1.2 1.2 1.2"
+               position="0 0 0"
+               gesture-handler></a-entity>
    </a-marker>
+
+   <!-- marcador kanji com livro.glb -->
    <a-marker preset="kanji" size="0.11">
-     <a-entity id="s2" gltf-model="livro.glb" 
-            scale="0.5 0.5 0.5" 
-            position="0 0 0"></a-entity>
+     <a-entity id="s2" gltf-model="livro.glb"
+               scale="1.2 1.2 1.2"
+               position="0 0 0"
+               gesture-handler></a-entity>
    </a-marker>
-   <!-- linha -->
-   <a-entity link-esferas line="start:0 0 0; end:0 0 0"></a-entity>
+
    <!-- luzes -->
    <a-light type="ambient" color="#CCC"></a-light>
-   <a-light type="directional" intensity="0.9" position= ></a-light>
+   <a-light type="directional" intensity="0.9" position="1 1 0"></a-light>
  </a-scene>
+
+ <!-- Componente para zoom e rotação com toque -->
+ <script>
+   AFRAME.registerComponent('gesture-handler', {
+     schema: {enabled: {default: true}},
+     init: function () {
+       const el = this.el;
+       let scaleFactor = 1.2;   // escala inicial
+       let rotationY = 0;
+       const minScale = 0.5;    // limite mínimo
+       const maxScale = 3.0;    // limite máximo
+
+       // Zoom com gesto de pinça
+       el.sceneEl.addEventListener('touchmove', function (evt) {
+         if (evt.touches.length === 2) {
+           const dx = evt.touches[0].clientX - evt.touches[1].clientX;
+           const dy = evt.touches[0].clientY - evt.touches[1].clientY;
+           const dist = Math.sqrt(dx * dx + dy * dy);
+           if (this.lastDist) {
+             const delta = dist - this.lastDist;
+             scaleFactor += delta * 0.001;
+             // aplica limites
+             scaleFactor = Math.min(Math.max(scaleFactor, minScale), maxScale);
+             el.setAttribute('scale', `${scaleFactor} ${scaleFactor} ${scaleFactor}`);
+           }
+           this.lastDist = dist;
+         }
+       });
+
+       // Rotação com arrasto de um dedo
+       el.sceneEl.addEventListener('touchmove', function (evt) {
+         if (evt.touches.length === 1) {
+           rotationY += evt.touches[0].movementX * 0.5;
+           el.setAttribute('rotation', `0 ${rotationY} 0`);
+         }
+       });
+     }
+   });
+ </script>
 </body>
 </html>
-
