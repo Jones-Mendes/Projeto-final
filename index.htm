@@ -1,59 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>AR - Projeto Final</title>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-  <!-- AR.js -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-  <!-- arjs-gestures: biblioteca dedicada para pinch e drag no AR.js -->
-  <script src="https://raw.githack.com/fcor/arjs-gestures/main/dist/gestures.js"></script>
+<title>AR.js Drag e Pinch</title>
 
-  <style>
-    html, body {
-      margin: 0;
-      overflow: hidden;
-      touch-action: none;
-      overscroll-behavior: none;
-    }
-    a-scene, canvas {
-      touch-action: none;
-    }
-  </style>
+<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
+<style>
+html, body {
+    margin: 0;
+    overflow: hidden;
+    touch-action: none;
+}
+
+canvas {
+    touch-action: none;
+}
+</style>
 </head>
+
 <body>
-  <!-- gesture-detector DEVE estar em a-scene para a biblioteca funcionar -->
-  <a-scene embedded arjs="sourceType: webcam;" gesture-detector>
+
+<a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+    vr-mode-ui="enabled: false">
+
+    <a-marker preset="hiro">
+
+        <a-entity
+            id="model"
+            gltf-model="ZeAlencar.glb"
+            position="0 0 0"
+            rotation="0 0 0"
+            scale="2 2 2">
+        </a-entity>
+
+    </a-marker>
+
     <a-entity camera></a-entity>
 
-    <!-- marcador hiro com ZeAlencar.glb -->
-    <a-marker preset="hiro" size="0.11">
-      <a-entity id="s1"
-                gltf-model="ZeAlencar.glb"
-                scale="3 3 3"
-                position="0 0 0"
-                rotation="0 0 0"
-                gesture-handler="minScale: 0.5; maxScale: 6; rotationFactor: 5;">
-      </a-entity>
-    </a-marker>
+    <a-light type="ambient" intensity="1"></a-light>
+    <a-light type="directional" intensity="1" position="1 2 1"></a-light>
 
-    <!-- marcador kanji com livro.glb -->
-    <a-marker preset="kanji" size="0.11">
-      <a-entity id="s2"
-                gltf-model="livro.glb"
-                scale="3 3 3"
-                position="0 0 0"
-                rotation="0 0 0"
-                gesture-handler="minScale: 0.5; maxScale: 6; rotationFactor: 5;">
-      </a-entity>
-    </a-marker>
+</a-scene>
 
-    <!-- luzes -->
-    <a-light type="ambient" color="#CCC"></a-light>
-    <a-light type="directional" intensity="0.9" position="1 1 0"></a-light>
-  </a-scene>
+<script>
+window.addEventListener("load", () => {
+
+    const model = document.querySelector("#model");
+
+    let startDistance = 0;
+    let currentScale = 2;
+
+    let lastX = 0;
+    let rotationY = 0;
+
+    function getDistance(t1, t2) {
+        const dx = t2.clientX - t1.clientX;
+        const dy = t2.clientY - t1.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    document.addEventListener("touchstart", (e) => {
+
+        if (e.touches.length === 1) {
+            lastX = e.touches[0].clientX;
+        }
+
+        if (e.touches.length === 2) {
+            startDistance = getDistance(
+                e.touches[0],
+                e.touches[1]
+            );
+        }
+    }, { passive: false });
+
+    document.addEventListener("touchmove", (e) => {
+
+        e.preventDefault();
+
+        if (!model.object3D.visible) return;
+
+        // DRAG / ROTAÇÃO
+        if (e.touches.length === 1) {
+
+            const currentX = e.touches[0].clientX;
+
+            const deltaX = currentX - lastX;
+
+            rotationY += deltaX * 0.5;
+
+            model.setAttribute(
+                "rotation",
+                `0 ${rotationY} 0`
+            );
+
+            lastX = currentX;
+        }
+
+        // PINCH / ESCALA
+        if (e.touches.length === 2) {
+
+            const currentDistance = getDistance(
+                e.touches[0],
+                e.touches[1]
+            );
+
+            let scaleFactor =
+                currentDistance / startDistance;
+
+            let newScale =
+                currentScale * scaleFactor;
+
+            newScale =
+                Math.max(0.5,
+                Math.min(newScale, 8));
+
+            model.setAttribute(
+                "scale",
+                `${newScale} ${newScale} ${newScale}`
+            );
+        }
+
+    }, { passive: false });
+
+    document.addEventListener("touchend", (e) => {
+
+        const scale = model.getAttribute("scale");
+
+        currentScale = scale.x;
+
+    });
+
+});
+</script>
+
 </body>
 </html>
