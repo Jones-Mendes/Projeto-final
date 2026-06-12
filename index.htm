@@ -2,12 +2,22 @@
 <html>
 <head>
  <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
  <title>AR - Projeto Final</title>
  <!-- A-Frame + AR.js -->
  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
  <style>
-   body {margin: 0; overflow: hidden}
+   html, body {
+     margin: 0;
+     overflow: hidden;
+     touch-action: none;
+   }
+
+   a-scene,
+   canvas {
+     touch-action: none;
+   }
  </style>
 </head>
 <body>
@@ -47,6 +57,13 @@
        let lastDistance = null;
        const minScale = 0.5;
        const maxScale = 6.0;
+       let gestureTarget = null;
+
+       const markerEl = el.closest('a-marker');
+
+       const isMarkerVisible = () => {
+         return !markerEl || markerEl.object3D.visible;
+       };
 
        // Função auxiliar para distância entre dois dedos
        const getDistance = (touchA, touchB) => {
@@ -55,18 +72,27 @@
          return Math.hypot(dx, dy);
        };
 
-       sceneEl.addEventListener('touchstart', (evt) => {
+       const onTouchStart = (evt) => {
+         if (!isMarkerVisible()) {
+           return;
+         }
+
          if (evt.touches.length === 1) {
            lastTouch = {x: evt.touches[0].clientX, y: evt.touches[0].clientY};
            lastDistance = null;
          }
+
          if (evt.touches.length === 2) {
            lastDistance = getDistance(evt.touches[0], evt.touches[1]);
            lastTouch = null;
          }
-       }, {passive:false});
+       };
 
-       sceneEl.addEventListener('touchmove', (evt) => {
+       const onTouchMove = (evt) => {
+         if (!isMarkerVisible()) {
+           return;
+         }
+
          if (evt.touches.length === 1 && lastTouch) {
            evt.preventDefault();
            const dx = evt.touches[0].clientX - lastTouch.x;
@@ -85,12 +111,38 @@
            el.setAttribute('scale', `${scaleFactor} ${scaleFactor} ${scaleFactor}`);
            lastDistance = currentDistance;
          }
-       }, {passive:false});
+       };
 
-       sceneEl.addEventListener('touchend', () => {
+       const resetGesture = () => {
          lastTouch = null;
          lastDistance = null;
-       });
+       };
+
+       const attachGestureListeners = () => {
+         gestureTarget = sceneEl.canvas || sceneEl;
+         gestureTarget.style.touchAction = 'none';
+         gestureTarget.addEventListener('touchstart', onTouchStart, {passive: false});
+         gestureTarget.addEventListener('touchmove', onTouchMove, {passive: false});
+         gestureTarget.addEventListener('touchend', resetGesture, {passive: false});
+         gestureTarget.addEventListener('touchcancel', resetGesture, {passive: false});
+       };
+
+       if (sceneEl.hasLoaded) {
+         attachGestureListeners();
+       } else {
+         sceneEl.addEventListener('loaded', attachGestureListeners, {once: true});
+       }
+
+       this.remove = function () {
+         if (!gestureTarget) {
+           return;
+         }
+
+         gestureTarget.removeEventListener('touchstart', onTouchStart);
+         gestureTarget.removeEventListener('touchmove', onTouchMove);
+         gestureTarget.removeEventListener('touchend', resetGesture);
+         gestureTarget.removeEventListener('touchcancel', resetGesture);
+       };
      }
    });
  </script>
