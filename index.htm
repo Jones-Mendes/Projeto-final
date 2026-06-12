@@ -12,10 +12,9 @@
      margin: 0;
      overflow: hidden;
      touch-action: none;
+     overscroll-behavior: none;
    }
-
-   a-scene,
-   canvas {
+   a-scene, canvas {
      touch-action: none;
    }
  </style>
@@ -29,6 +28,7 @@
      <a-entity id="s1" gltf-model="ZeAlencar.glb"
                scale="3 3 3"
                position="0 0 0"
+               rotation="0 0 0"
                gesture-handler></a-entity>
    </a-marker>
 
@@ -37,6 +37,7 @@
      <a-entity id="s2" gltf-model="livro.glb"
                scale="3 3 3"
                position="0 0 0"
+               rotation="0 0 0"
                gesture-handler></a-entity>
    </a-marker>
 
@@ -48,101 +49,88 @@
  <!-- Componente para zoom e rotação com toque -->
  <script>
    AFRAME.registerComponent('gesture-handler', {
+     schema: {
+       minScale: { default: 0.5 },
+       maxScale: { default: 6.0 },
+       rotateSpeed: { default: 0.5 },
+       pinchSpeed: { default: 0.003 }
+     },
      init: function () {
-       const el = this.el;
-       const sceneEl = el.sceneEl;
-       let scaleFactor = 3;   // escala inicial
-       let rotation = {x: 0, y: 0, z: 0};
-       let lastTouch = null;
-       let lastDistance = null;
-       const minScale = 0.5;
-       const maxScale = 6.0;
-       let gestureTarget = null;
+       this._active = false;
+       this._lastOneFinger = null;
+       this._lastPinchDistance = 0;
 
-       const markerEl = el.closest('a-marker');
+       this.sceneEl = this.el.sceneEl;
+       this.sceneEl.addEventListener('loaded', () => {
+         this.canvas = this.sceneEl.canvas;
+         if (!this.canvas) return;
+         this.canvas.style.touchAction = 'none';
+         this.canvas.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+         this.canvas.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+         this.canvas.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: false });
+         this.canvas.addEventListener('touchcancel', this.onTouchEnd.bind(this), { passive: false });
+       });
+     },
+     isMarkerVisible: function () {
+       const marker = this.el.parentEl;
+       return marker && marker.object3D && marker.object3D.visible;
+     },
+     distance: function (t1, t2) {
+       const dx = t1.clientX - t2.clientX;
+       const dy = t1.clientY - t2.clientY;
+       return Math.sqrt(dx * dx + dy * dy);
+     },
+     onTouchStart: function (evt) {
+       if (!this.isMarkerVisible()) return;
+       if (evt.touches.length === 1) {
+         this._active = true;
+         this._lastOneFinger = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+         this._lastPinchDistance = 0;
+       } else if (evt.touches.length === 2) {
+         this._active = true;
+         this._lastOneFinger = null;
+         this._lastPinchDistance = this.distance(evt.touches[0], evt.touches[1]);
+       }
+     },
+     onTouchMove: function (evt) {
+       if (!this._active || !this.isMarkerVisible()) return;
+       evt.preventDefault();
 
-       const isMarkerVisible = () => {
-         return !markerEl || markerEl.object3D.visible;
-       };
-
-       // Função auxiliar para distância entre dois dedos
-       const getDistance = (touchA, touchB) => {
-         const dx = touchA.clientX - touchB.clientX;
-         const dy = touchA.clientY - touchB.clientY;
-         return Math.hypot(dx, dy);
-       };
-
-       const onTouchStart = (evt) => {
-         if (!isMarkerVisible()) {
-           return;
-         }
-
-         if (evt.touches.length === 1) {
-           lastTouch = {x: evt.touches[0].clientX, y: evt.touches[0].clientY};
-           lastDistance = null;
-         }
-
-         if (evt.touches.length === 2) {
-           lastDistance = getDistance(evt.touches[0], evt.touches[1]);
-           lastTouch = null;
-         }
-       };
-
-       const onTouchMove = (evt) => {
-         if (!isMarkerVisible()) {
-           return;
-         }
-
-         if (evt.touches.length === 1 && lastTouch) {
-           evt.preventDefault();
-           const dx = evt.touches[0].clientX - lastTouch.x;
-           const dy = evt.touches[0].clientY - lastTouch.y;
-           rotation.y += dx * 0.5;   // rotação horizontal
-           rotation.x -= dy * 0.5;   // rotação vertical
-           el.setAttribute('rotation', `${rotation.x} ${rotation.y} ${rotation.z}`);
-           lastTouch = {x: evt.touches[0].clientX, y: evt.touches[0].clientY};
-         }
-
-         if (evt.touches.length === 2 && lastDistance !== null) {
-           evt.preventDefault();
-           const currentDistance = getDistance(evt.touches[0], evt.touches[1]);
-           scaleFactor *= currentDistance / lastDistance;
-           scaleFactor = Math.min(Math.max(scaleFactor, minScale), maxScale);
-           el.setAttribute('scale', `${scaleFactor} ${scaleFactor} ${scaleFactor}`);
-           lastDistance = currentDistance;
-         }
-       };
-
-       const resetGesture = () => {
-         lastTouch = null;
-         lastDistance = null;
-       };
-
-       const attachGestureListeners = () => {
-         gestureTarget = sceneEl.canvas || sceneEl;
-         gestureTarget.style.touchAction = 'none';
-         gestureTarget.addEventListener('touchstart', onTouchStart, {passive: false});
-         gestureTarget.addEventListener('touchmove', onTouchMove, {passive: false});
-         gestureTarget.addEventListener('touchend', resetGesture, {passive: false});
-         gestureTarget.addEventListener('touchcancel', resetGesture, {passive: false});
-       };
-
-       if (sceneEl.hasLoaded) {
-         attachGestureListeners();
-       } else {
-         sceneEl.addEventListener('loaded', attachGestureListeners, {once: true});
+       if (evt.touches.length === 1 && this._lastOneFinger) {
+         const touch = evt.touches[0];
+         const dx = touch.clientX - this._lastOneFinger.x;
+         const dy = touch.clientY - this._lastOneFinger.y;
+         const rotation = this.el.getAttribute('rotation');
+         rotation.y += dx * this.data.rotateSpeed;
+         rotation.x -= dy * this.data.rotateSpeed;
+         rotation.x = Math.max(-85, Math.min(85, rotation.x));
+         this.el.setAttribute('rotation', rotation);
+         this._lastOneFinger = { x: touch.clientX, y: touch.clientY };
+         return;
        }
 
-       this.remove = function () {
-         if (!gestureTarget) {
-           return;
+       if (evt.touches.length === 2) {
+         const currentDistance = this.distance(evt.touches[0], evt.touches[1]);
+         if (this._lastPinchDistance > 0) {
+           const delta = currentDistance - this._lastPinchDistance;
+           const scale = this.el.getAttribute('scale');
+           const factor = 1 + delta * this.data.pinchSpeed;
+           const next = Math.max(this.data.minScale, Math.min(this.data.maxScale, scale.x * factor));
+           this.el.setAttribute('scale', `${next} ${next} ${next}`);
          }
-
-         gestureTarget.removeEventListener('touchstart', onTouchStart);
-         gestureTarget.removeEventListener('touchmove', onTouchMove);
-         gestureTarget.removeEventListener('touchend', resetGesture);
-         gestureTarget.removeEventListener('touchcancel', resetGesture);
-       };
+         this._lastPinchDistance = currentDistance;
+       }
+     },
+     onTouchEnd: function (evt) {
+       if (evt.touches.length === 0) {
+         this._active = false;
+         this._lastOneFinger = null;
+         this._lastPinchDistance = 0;
+       }
+       if (evt.touches.length === 1) {
+         this._lastOneFinger = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+         this._lastPinchDistance = 0;
+       }
      }
    });
  </script>
