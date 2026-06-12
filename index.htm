@@ -43,7 +43,7 @@
            /* cores conforme limiar de 20 cm */
            const proximas = distBordas < 0.20;                 // 20 cm
            this.esfAzul.setAttribute('color', proximas ? '#4CAF50' : '#2196F3');
-           this.esfLaranja.setAttribute('color', proximas ? '#4CAF50' : '#ef42f5');
+           this.esfLaranja.setAttribute('color', proximas ? '#4CAF50' : '#FF9800');
            const corLinha = proximas ? '#F44336' : this.data.corLonge;
            /* linha tangente às superfícies */
            this.vDir.subVectors(this.pos2, this.pos1).normalize().multiplyScalar(RAIO_REAL);
@@ -63,10 +63,14 @@
    <a-entity camera></a-entity>
    <!-- marcadores de 11 cm com esferas de 6 cm -->
    <a-marker preset="hiro" size="0.11">
-     <a-sphere id="s1" radius="0.273" position="0 0.273 0" color="#2196F3"></a-sphere>
+     <a-entity id="s1" gltf-model="ZeAlencar.glb" 
+            scale="0.5 0.5 0.5" 
+            position="0 0 0"></a-entity>
    </a-marker>
    <a-marker preset="kanji" size="0.11">
-     <a-sphere id="s2" radius="0.273" position="0 0.273 0" color="#ef42f5"></a-sphere>
+     <a-entity id="s2" gltf-model="livro.glb" 
+            scale="0.5 0.5 0.5" 
+            position="0 0 0"></a-entity>
    </a-marker>
    <!-- linha -->
    <a-entity link-esferas line="start:0 0 0; end:0 0 0"></a-entity>
