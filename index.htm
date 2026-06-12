@@ -15,6 +15,146 @@
 
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
+<!-- ───────────────────────────────────────────────
+         Componente: detecção de proximidade entre
+         marcadores, spin, flutuação e áudio.
+         Deve ficar ANTES do <a-scene>.
+──────────────────────────────────────────────── -->
+<script>
+AFRAME.registerComponent('interaction-detector', {
+
+    init: function () {
+
+        /* Referências aos marcadores e entidades */
+        this.hiroMarker  = document.querySelectorAll('a-marker')[0];
+        this.kanjiMarker = document.querySelectorAll('a-marker')[1];
+        this.zeEl        = document.querySelector('#ze');
+        this.livroEl     = document.querySelector('#livro');
+
+        /* ── Áudio ── */
+        this.audio = new Audio('./explicando.mp3');
+        this.audio.loop = false;
+        this.audioPlayed = false;
+
+        /* Desbloquear contexto de áudio no primeiro toque (Android) */
+        const unlockOnce = () => {
+            this.audio.play().then(() => {
+                this.audio.pause();
+                this.audio.currentTime = 0;
+            }).catch(() => {});
+            document.removeEventListener('touchstart', unlockOnce);
+        };
+        document.addEventListener('touchstart', unlockOnce, { once: true });
+
+        /* ── Estado ── */
+        this.lastState = 'far';   /* 'near' | 'far' */
+        this.THRESHOLD = 0.28;    /* unidades do mundo */
+
+        /* ── Rotação acumulada para spin ── */
+        this.spinX = 0;
+        this.spinY = 0;
+        this.spinZ = 0;
+
+        /* ── Tempo para flutuação ── */
+        this.floatTime = 0;
+
+        /* ── Vetores THREE reutilizáveis ── */
+        this.posHiro  = new THREE.Vector3();
+        this.posKanji = new THREE.Vector3();
+    },
+
+    tick: function (time, deltaTime) {
+
+        /* Limitar delta para evitar saltos após app em background */
+        const dt = Math.min(deltaTime, 100) / 1000;
+
+        const hiroVisible  = this.hiroMarker.object3D.visible;
+        const kanjiVisible = this.kanjiMarker.object3D.visible;
+
+        /* Livro fora de cena — nada a animar */
+        if (!kanjiVisible) { return; }
+
+        /* Só o livro visível — flutua */
+        if (!hiroVisible) {
+            this._doFloat(dt);
+            return;
+        }
+
+        /* Ambos visíveis — calcular distância real entre marcadores */
+        this.hiroMarker.object3D.getWorldPosition(this.posHiro);
+        this.kanjiMarker.object3D.getWorldPosition(this.posKanji);
+        const dist = this.posHiro.distanceTo(this.posKanji);
+
+        if (dist < this.THRESHOLD) {
+
+            /* ════ ESTADO PRÓXIMO ════ */
+            if (this.lastState !== 'near') {
+                this.lastState   = 'near';
+                this.audioPlayed = false;
+
+                /* Sincroniza ângulos de spin com a rotação atual
+                     para evitar salto visual na transição */
+                const rot = this.livroEl.getAttribute('rotation');
+                this.spinX = rot.x;
+                this.spinY = rot.y;
+                this.spinZ = rot.z;
+            }
+
+            /* Tocar áudio uma única vez por aproximação */
+            if (!this.audioPlayed) {
+                this.audio.currentTime = 0;
+                this.audio.play().catch(() => {});
+                this.audioPlayed = true;
+            }
+
+            this._doSpin(dt);
+
+        } else {
+
+            /* ════ ESTADO DISTANTE ════ */
+            if (this.lastState === 'near') {
+                /* Permite tocar na próxima aproximação */
+                this.audioPlayed = false;
+                if (!this.audio.paused) {
+                    this.audio.pause();
+                    this.audio.currentTime = 0;
+                }
+                /* Reinicia fase da flutuação para começar suave */
+                this.floatTime = 0;
+            }
+
+            this.lastState = 'far';
+            this._doFloat(dt);
+        }
+    },
+
+    /* Rotação contínua em X, Y e Z */
+    _doSpin: function (dt) {
+        this.spinX += 80  * dt;   /* graus/s */
+        this.spinY += 120 * dt;
+        this.spinZ += 60  * dt;
+        this.livroEl.setAttribute('rotation', {
+            x: this.spinX,
+            y: this.spinY,
+            z: this.spinZ
+        });
+    },
+
+    /* Flutuação suave em Y */
+    _doFloat: function (dt) {
+        this.floatTime += dt;
+        const floatY = Math.sin(this.floatTime * 1.8) * 0.12;
+        const pos = this.livroEl.getAttribute('position');
+        this.livroEl.setAttribute('position', {
+            x: pos.x,
+            y: floatY,
+            z: pos.z
+        });
+    }
+
+});
+</script>
+
 <style>
 html,
 body{
@@ -39,7 +179,8 @@ canvas{
 embedded
 vr-mode-ui="enabled:false"
 renderer="logarithmicDepthBuffer:true;"
-arjs="sourceType:webcam; debugUIEnabled:false;">
+arjs="sourceType:webcam; debugUIEnabled:false;"
+interaction-detector>
 
 <a-marker preset="hiro">
 
