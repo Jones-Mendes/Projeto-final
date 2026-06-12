@@ -41,35 +41,98 @@
      schema: {enabled: {default: true}},
      init: function () {
        const el = this.el;
-       let scaleFactor = 1.2;   // escala inicial
-       let rotationY = 0;
-       const minScale = 0.5;    // limite mínimo
-       const maxScale = 3.0;    // limite máximo
+       const sceneEl = el.sceneEl;
+       let scaleFactor = Number(el.getAttribute('scale').x) || 1;
+       let rotationY = Number(el.getAttribute('rotation').y) || 0;
+      let lastDistance = null;
+      let lastAngle = null;
+      let lastTouchX = null;
+       const minScale = 0.5;
+       const maxScale = 6.0;
 
-       // Zoom com gesto de pinça
-       el.sceneEl.addEventListener('touchmove', function (evt) {
+       const getMarkerEl = () => el.closest('a-marker');
+
+       const isActive = () => {
+         const markerEl = getMarkerEl();
+         return this.data.enabled && (!markerEl || markerEl.object3D.visible);
+       };
+
+       const getDistance = (touchA, touchB) => {
+         const dx = touchA.clientX - touchB.clientX;
+         const dy = touchA.clientY - touchB.clientY;
+         return Math.hypot(dx, dy);
+       };
+
+       const getAngle = (touchA, touchB) => {
+         return Math.atan2(touchB.clientY - touchA.clientY, touchB.clientX - touchA.clientX);
+       };
+
+       const resetGesture = () => {
+         lastDistance = null;
+         lastAngle = null;
+         lastTouchX = null;
+       };
+
+       sceneEl.addEventListener('touchstart', (evt) => {
+         if (!isActive()) {
+           return;
+         }
+
+         if (evt.touches.length === 1) {
+           lastTouchX = evt.touches[0].clientX;
+           lastDistance = null;
+           lastAngle = null;
+         }
+
          if (evt.touches.length === 2) {
-           const dx = evt.touches[0].clientX - evt.touches[1].clientX;
-           const dy = evt.touches[0].clientY - evt.touches[1].clientY;
-           const dist = Math.sqrt(dx * dx + dy * dy);
-           if (this.lastDist) {
-             const delta = dist - this.lastDist;
-             scaleFactor += delta * 0.001;
-             // aplica limites
+           lastDistance = getDistance(evt.touches[0], evt.touches[1]);
+           lastAngle = getAngle(evt.touches[0], evt.touches[1]);
+           lastTouchX = null;
+         }
+       }, {passive: false});
+
+       sceneEl.addEventListener('touchmove', (evt) => {
+         if (!isActive()) {
+           return;
+         }
+
+         if (evt.touches.length === 1) {
+           evt.preventDefault();
+           const touchX = evt.touches[0].clientX;
+           const deltaX = touchX - lastTouchX;
+
+           if (lastTouchX !== null) {
+             rotationY += deltaX * 0.5;
+             el.setAttribute('rotation', `0 ${rotationY} 0`);
+           }
+
+           lastTouchX = touchX;
+           return;
+         }
+
+         if (evt.touches.length === 2) {
+           evt.preventDefault();
+           const currentDistance = getDistance(evt.touches[0], evt.touches[1]);
+           const currentAngle = getAngle(evt.touches[0], evt.touches[1]);
+
+           if (lastDistance !== null && lastDistance > 0) {
+             scaleFactor *= currentDistance / lastDistance;
              scaleFactor = Math.min(Math.max(scaleFactor, minScale), maxScale);
              el.setAttribute('scale', `${scaleFactor} ${scaleFactor} ${scaleFactor}`);
            }
-           this.lastDist = dist;
-         }
-       });
 
-       // Rotação com arrasto de um dedo
-       el.sceneEl.addEventListener('touchmove', function (evt) {
-         if (evt.touches.length === 1) {
-           rotationY += evt.touches[0].movementX * 0.5;
-           el.setAttribute('rotation', `0 ${rotationY} 0`);
+           if (lastAngle !== null) {
+             rotationY += (currentAngle - lastAngle) * (180 / Math.PI);
+             el.setAttribute('rotation', `0 ${rotationY} 0`);
+           }
+
+           lastDistance = currentDistance;
+           lastAngle = currentAngle;
          }
-       });
+       }, {passive: false});
+
+       sceneEl.addEventListener('touchend', resetGesture);
+       sceneEl.addEventListener('touchcancel', resetGesture);
      }
    });
  </script>
