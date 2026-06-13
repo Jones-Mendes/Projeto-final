@@ -11,6 +11,8 @@
 
 <title>Projeto Final AR</title>
 
+<link rel="stylesheet" href="./styles.css">
+
 <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -30,21 +32,25 @@ AFRAME.registerComponent('interaction-detector', {
         this.kanjiMarker = document.querySelectorAll('a-marker')[1];
         this.zeEl        = document.querySelector('#ze');
         this.livroEl     = document.querySelector('#livro');
+        this.audioBtn    = document.querySelector('#audioBtn');
 
         /* ── Áudio ── */
         this.audio = new Audio('./explicando.mp3');
         this.audio.loop = false;
-        this.audioPlayed = false;
+        this.lastPressTs = 0;
 
-        /* Desbloquear contexto de áudio no primeiro toque (Android) */
-        const unlockOnce = () => {
-            this.audio.play().then(() => {
-                this.audio.pause();
-                this.audio.currentTime = 0;
-            }).catch(() => {});
-            document.removeEventListener('touchstart', unlockOnce);
+        this._handleAudioButtonPress = (event) => {
+            event.preventDefault();
+            const now = Date.now();
+            if (now - this.lastPressTs < 350) { return; }
+            this.lastPressTs = now;
+            if (this.lastState !== 'near') { return; }
+            this.audio.currentTime = 0;
+            this.audio.play().catch(() => {});
         };
-        document.addEventListener('touchstart', unlockOnce, { once: true });
+        this.audioBtn.addEventListener('pointerup', this._handleAudioButtonPress);
+        this.audioBtn.addEventListener('click', this._handleAudioButtonPress);
+        this._hideAudioButton();
 
         /* ── Estado ── */
         this.lastState = 'far';   /* 'near' | 'far' */
@@ -78,16 +84,20 @@ AFRAME.registerComponent('interaction-detector', {
         const kanjiVisible = this.kanjiMarker.object3D.visible;
 
         const touchState = window.ARTouchState;
-        if (touchState && touchState.isInteracting && touchState.target === 'livro') {
+        const livroUnderTouch = !!(touchState && touchState.isInteracting && touchState.target === 'livro');
+
+        /* Livro fora de cena — nada a animar */
+        if (!kanjiVisible) {
+            this._setFarState();
             return;
         }
 
-        /* Livro fora de cena — nada a animar */
-        if (!kanjiVisible) { return; }
-
         /* Só o livro visível — flutua */
         if (!hiroVisible) {
-            this._doFloat(dt);
+            this._setFarState();
+            if (!livroUnderTouch) {
+                this._doFloat(dt);
+            }
             return;
         }
 
@@ -101,7 +111,7 @@ AFRAME.registerComponent('interaction-detector', {
             /* ════ ESTADO PRÓXIMO ════ */
             if (this.lastState !== 'near') {
                 this.lastState   = 'near';
-                this.audioPlayed = false;
+                this._showAudioButton();
 
                 /* Sincroniza ângulos de spin com a rotação atual
                      para evitar salto visual na transição */
@@ -111,32 +121,46 @@ AFRAME.registerComponent('interaction-detector', {
                 this.spinZ = rot.z;
             }
 
-            /* Tocar áudio uma única vez por aproximação */
-            if (!this.audioPlayed) {
-                this.audio.currentTime = 0;
-                this.audio.play().catch(() => {});
-                this.audioPlayed = true;
+            if (!livroUnderTouch) {
+                this._doSpin(dt);
             }
-
-            this._doSpin(dt);
 
         } else {
 
             /* ════ ESTADO DISTANTE ════ */
             if (this.lastState === 'near') {
-                /* Permite tocar na próxima aproximação */
-                this.audioPlayed = false;
-                if (!this.audio.paused) {
-                    this.audio.pause();
-                    this.audio.currentTime = 0;
-                }
-                /* Reinicia fase da flutuação para começar suave */
-                this.floatTime = 0;
+                this._setFarState();
             }
 
-            this.lastState = 'far';
-            this._doFloat(dt);
+            if (!livroUnderTouch) {
+                this._doFloat(dt);
+            }
         }
+    },
+
+    _showAudioButton: function () {
+        this.audioBtn.classList.remove('is-hidden');
+    },
+
+    _hideAudioButton: function () {
+        this.audioBtn.classList.add('is-hidden');
+    },
+
+    _stopAudio: function () {
+        if (!this.audio.paused) {
+            this.audio.pause();
+        }
+        this.audio.currentTime = 0;
+    },
+
+    _setFarState: function () {
+        if (this.lastState === 'near') {
+            this._stopAudio();
+            this._hideAudioButton();
+            /* Reinicia fase da flutuação para começar suave */
+            this.floatTime = 0;
+        }
+        this.lastState = 'far';
     },
 
     /* Rotação contínua em X, Y e Z */
@@ -165,22 +189,6 @@ AFRAME.registerComponent('interaction-detector', {
 
 });
 </script>
-
-<style>
-html,
-body{
-    margin:0;
-    padding:0;
-    overflow:hidden;
-    touch-action:none;
-    width:100%;
-    height:100%;
-}
-
-canvas{
-    touch-action:none;
-}
-</style>
 
 </head>
 
@@ -227,6 +235,10 @@ position="1 2 1"
 intensity="1"> </a-light>
 
 </a-scene>
+
+<button id="audioBtn" class="audio-btn is-hidden" type="button" aria-label="Ouvir História">
+🔊 Ouvir História
+</button>
 
 <script>
 
