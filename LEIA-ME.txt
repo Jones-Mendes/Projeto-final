@@ -1,0 +1,9 @@
+LEIA-ME
+
+Os modelos 3D utilizados neste projeto foram realizados por mim, utilizando a plataforma https://studio.tripo3d.ai/ na versão gratuita.
+
+Isso inclui:
+- o busto de José de Alencar;
+- o modelo do livro com o trecho da obra LUCÍOLA.
+
+A criação dos modelos foi feita diretamente na plataforma Tripo 3D, com uso da versão gratuita disponibilizada pelo serviço.
