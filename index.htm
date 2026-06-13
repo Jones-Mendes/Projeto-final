@@ -41,18 +41,19 @@ AFRAME.registerComponent('interaction-detector', {
 
         this._handleAudioButtonPress = (event) => {
             event.preventDefault();
+            event.stopPropagation();
             const now = Date.now();
             if (now - this.lastPressTs < 350) { return; }
             this.lastPressTs = now;
-            if (this.lastState !== 'near') { return; }
             this.audio.currentTime = 0;
             this.audio.play().catch(() => {});
         };
         if (this.audioBtn) {
             this.audioBtn.addEventListener('pointerup', this._handleAudioButtonPress);
             this.audioBtn.addEventListener('click', this._handleAudioButtonPress);
+            this.audioBtn.addEventListener('touchend', this._handleAudioButtonPress, { passive: false });
         }
-        this._hideAudioButton();
+        this._showAudioButton();
 
         /* ── Estado ── */
         this.lastState = 'far';   /* 'near' | 'far' */
@@ -113,7 +114,6 @@ AFRAME.registerComponent('interaction-detector', {
             /* ════ ESTADO PRÓXIMO ════ */
             if (this.lastState !== 'near') {
                 this.lastState   = 'near';
-                this._showAudioButton();
 
                 /* Sincroniza ângulos de spin com a rotação atual
                      para evitar salto visual na transição */
@@ -147,7 +147,7 @@ AFRAME.registerComponent('interaction-detector', {
 
     _hideAudioButton: function () {
         if (!this.audioBtn) { return; }
-        this.audioBtn.classList.add('is-hidden');
+        this.audioBtn.classList.remove('is-hidden');
     },
 
     _stopAudio: function () {
@@ -160,7 +160,6 @@ AFRAME.registerComponent('interaction-detector', {
     _setFarState: function () {
         if (this.lastState === 'near') {
             this._stopAudio();
-            this._hideAudioButton();
             /* Reinicia fase da flutuação para começar suave */
             this.floatTime = 0;
         }
@@ -198,7 +197,7 @@ AFRAME.registerComponent('interaction-detector', {
 
 <body>
 
-<button id="audioBtn" class="audio-btn is-hidden" type="button" aria-label="Ouvir História">
+<button id="audioBtn" class="audio-btn" type="button" aria-label="Ouvir História">
 🔊 Ouvir História
 </button>
 
@@ -374,7 +373,17 @@ getTouchedModel(touches[1].clientX, touches[1].clientY)
 return getTouchedModel(touches[0].clientX, touches[0].clientY);
 }
 
+function isAudioControlEventTarget(event){
+return !!(
+event.target &&
+event.target.closest &&
+event.target.closest("#audioBtn")
+);
+}
+
 document.addEventListener("touchstart",(e)=>{
+
+if(isAudioControlEventTarget(e)) return;
 
 activeModel = pickModelFromTouches(e.touches);
 
@@ -406,6 +415,8 @@ lastAngle = getAngle(t1, t2);
 },{passive:false});
 
 document.addEventListener("touchmove",(e)=>{
+
+if(isAudioControlEventTarget(e)) return;
 
 e.preventDefault();
 
@@ -492,6 +503,8 @@ lastAngle = angle;
 },{passive:false});
 
 document.addEventListener("touchend",(e)=>{
+
+if(isAudioControlEventTarget(e)) return;
 
 if(e.touches.length === 0){
 setTouchState(null, false);

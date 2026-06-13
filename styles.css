@@ -15,9 +15,9 @@ canvas{
 .audio-btn{
     position:fixed;
     left:50%;
-    bottom:24px;
+    bottom:calc(16px + env(safe-area-inset-bottom));
     transform:translateX(-50%);
-    z-index:50;
+    z-index:9999;
     border:0;
     border-radius:999px;
     padding:14px 24px;
@@ -29,6 +29,9 @@ canvas{
     box-shadow:0 8px 24px rgba(0,0,0,0.32);
     letter-spacing:0.2px;
     touch-action:manipulation;
+    pointer-events:auto;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
     cursor:pointer;
     opacity:1;
     transition:opacity 0.2s ease,transform 0.2s ease;
@@ -45,7 +48,7 @@ canvas{
 
 @media (max-width:600px){
     .audio-btn{
-        bottom:18px;
+        bottom:calc(14px + env(safe-area-inset-bottom));
         min-width:200px;
         padding:12px 20px;
         font-size:16px;
