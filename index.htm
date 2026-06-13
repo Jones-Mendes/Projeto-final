@@ -48,8 +48,10 @@ AFRAME.registerComponent('interaction-detector', {
             this.audio.currentTime = 0;
             this.audio.play().catch(() => {});
         };
-        this.audioBtn.addEventListener('pointerup', this._handleAudioButtonPress);
-        this.audioBtn.addEventListener('click', this._handleAudioButtonPress);
+        if (this.audioBtn) {
+            this.audioBtn.addEventListener('pointerup', this._handleAudioButtonPress);
+            this.audioBtn.addEventListener('click', this._handleAudioButtonPress);
+        }
         this._hideAudioButton();
 
         /* ── Estado ── */
@@ -139,10 +141,12 @@ AFRAME.registerComponent('interaction-detector', {
     },
 
     _showAudioButton: function () {
+        if (!this.audioBtn) { return; }
         this.audioBtn.classList.remove('is-hidden');
     },
 
     _hideAudioButton: function () {
+        if (!this.audioBtn) { return; }
         this.audioBtn.classList.add('is-hidden');
     },
 
@@ -194,6 +198,10 @@ AFRAME.registerComponent('interaction-detector', {
 
 <body>
 
+<button id="audioBtn" class="audio-btn is-hidden" type="button" aria-label="Ouvir História">
+🔊 Ouvir História
+</button>
+
 <a-scene
 embedded
 vr-mode-ui="enabled:false"
@@ -235,10 +243,6 @@ position="1 2 1"
 intensity="1"> </a-light>
 
 </a-scene>
-
-<button id="audioBtn" class="audio-btn is-hidden" type="button" aria-label="Ouvir História">
-🔊 Ouvir História
-</button>
 
 <script>
 
@@ -353,10 +357,26 @@ node = node.parent;
 return null;
 }
 
+function pickModelFromTouches(touches){
+if(!touches || touches.length === 0){
+return null;
+}
+
+if(touches.length >= 2){
+const center = getCenter(touches[0], touches[1]);
+return (
+getTouchedModel(center.x, center.y) ||
+getTouchedModel(touches[0].clientX, touches[0].clientY) ||
+getTouchedModel(touches[1].clientX, touches[1].clientY)
+);
+}
+
+return getTouchedModel(touches[0].clientX, touches[0].clientY);
+}
+
 document.addEventListener("touchstart",(e)=>{
 
-const startTouch = e.touches[0];
-activeModel = startTouch ? getTouchedModel(startTouch.clientX, startTouch.clientY) : null;
+activeModel = pickModelFromTouches(e.touches);
 
 if(!activeModel) return;
 
@@ -390,7 +410,7 @@ document.addEventListener("touchmove",(e)=>{
 e.preventDefault();
 
 if(!activeModel && e.touches.length > 0){
-activeModel = getTouchedModel(e.touches[0].clientX, e.touches[0].clientY);
+activeModel = pickModelFromTouches(e.touches);
 }
 
 if(!activeModel){
@@ -431,22 +451,36 @@ const angle = getAngle(t1, t2);
 
 const deltaCenterX = (center.x - lastCenterX) * 0.0022;
 const deltaCenterY = (center.y - lastCenterY) * 0.0022;
-const deltaDistance = (distance - lastDistance) * 0.003;
 const deltaAngle = normalizeAngleDelta(angle - lastAngle);
 
 const pos = activeModel.getAttribute("position");
 const rot = activeModel.getAttribute("rotation");
+const scale = activeModel.getAttribute("scale");
+
+let scaleFactor = 1;
+if(lastDistance > 0){
+scaleFactor = distance / lastDistance;
+}
+
+let newScale = scale.x * scaleFactor;
+newScale = Math.max(0.5, Math.min(newScale, 8));
 
 activeModel.setAttribute("position",{
 x: pos.x + deltaCenterX,
 y: pos.y - deltaCenterY,
-z: pos.z + deltaDistance
+z: pos.z
 });
 
 activeModel.setAttribute("rotation",{
 x: rot.x,
 y: rot.y,
 z: rot.z + (deltaAngle * 180 / Math.PI)
+});
+
+activeModel.setAttribute("scale",{
+x: newScale,
+y: newScale,
+z: newScale
 });
 
 lastCenterX = center.x;
