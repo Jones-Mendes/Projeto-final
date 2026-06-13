@@ -244,6 +244,11 @@ intensity="1"> </a-light>
 
 const ze = document.querySelector("#ze");
 const livro = document.querySelector("#livro");
+const sceneEl = document.querySelector("a-scene");
+const cameraEl = document.querySelector("a-entity[camera]");
+
+const raycaster = new THREE.Raycaster();
+const touchNDC = new THREE.Vector2();
 
 let activeModel = null;
 
@@ -294,20 +299,55 @@ window.ARTouchState.target =
 isInteracting && model ? model.getAttribute("id") : null;
 }
 
-function getVisibleModel(){
+function getTouchedModel(x, y){
 
-const hiroMarker =
-document.querySelectorAll("a-marker")[0];
-
-const kanjiMarker =
-document.querySelectorAll("a-marker")[1];
-
-if(hiroMarker.object3D.visible){
-return ze;
+if(!sceneEl || !cameraEl || !sceneEl.canvas){
+return null;
 }
 
-if(kanjiMarker.object3D.visible){
+const camera = cameraEl.getObject3D("camera");
+if(!camera){
+return null;
+}
+
+const canvasRect = sceneEl.canvas.getBoundingClientRect();
+if(canvasRect.width === 0 || canvasRect.height === 0){
+return null;
+}
+
+touchNDC.x = ((x - canvasRect.left) / canvasRect.width) * 2 - 1;
+touchNDC.y = -(((y - canvasRect.top) / canvasRect.height) * 2 - 1);
+
+raycaster.setFromCamera(touchNDC, camera);
+
+const visibleTargets = [];
+if(ze.object3D.visible){
+visibleTargets.push(ze.object3D);
+}
+if(livro.object3D.visible){
+visibleTargets.push(livro.object3D);
+}
+
+if(visibleTargets.length === 0){
+return null;
+}
+
+const intersections = raycaster.intersectObjects(visibleTargets, true);
+if(intersections.length === 0){
+return null;
+}
+
+const hit = intersections[0].object;
+
+let node = hit;
+while(node){
+if(node === ze.object3D){
+return ze;
+}
+if(node === livro.object3D){
 return livro;
+}
+node = node.parent;
 }
 
 return null;
@@ -315,7 +355,8 @@ return null;
 
 document.addEventListener("touchstart",(e)=>{
 
-activeModel = getVisibleModel();
+const startTouch = e.touches[0];
+activeModel = startTouch ? getTouchedModel(startTouch.clientX, startTouch.clientY) : null;
 
 if(!activeModel) return;
 
@@ -348,7 +389,9 @@ document.addEventListener("touchmove",(e)=>{
 
 e.preventDefault();
 
-activeModel = getVisibleModel();
+if(!activeModel && e.touches.length > 0){
+activeModel = getTouchedModel(e.touches[0].clientX, e.touches[0].clientY);
+}
 
 if(!activeModel){
 setTouchState(null, false);
