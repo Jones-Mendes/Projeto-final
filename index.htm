@@ -1,77 +1,65 @@
 <!DOCTYPE html>
-
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width,
-      initial-scale=1.0,
-      maximum-scale=1.0,
-      user-scalable=no">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Projeto Final AR</title>
-
 <link rel="stylesheet" href="./styles.css">
-
 <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
-
-<!-- ───────────────────────────────────────────────
-         Componente: detecção de proximidade entre
-         marcadores, spin, flutuação e áudio.
-         Deve ficar ANTES do <a-scene>.
-──────────────────────────────────────────────── -->
 <script>
 AFRAME.registerComponent('interaction-detector', {
-
     init: function () {
-
-        /* Referências aos marcadores e entidades */
-        this.hiroMarker  = document.querySelectorAll('a-marker')[0];
+        this.hiroMarker = document.querySelectorAll('a-marker')[0];
         this.kanjiMarker = document.querySelectorAll('a-marker')[1];
-        this.zeEl        = document.querySelector('#ze');
-        this.livroEl     = document.querySelector('#livro');
-        this.audioBtn    = document.querySelector('#audioBtn');
+        this.livroEl = document.querySelector('#livro');
+        this.audioBtn = document.querySelector('#audioBtn');
 
-        /* ── Áudio ── */
         this.audio = new Audio('./explicando.mp3');
         this.audio.loop = false;
         this.lastPressTs = 0;
 
+        this.audio.addEventListener('ended', () => {
+            this._syncAudioButtonLabel();
+        });
+
         this._handleAudioButtonPress = (event) => {
             event.preventDefault();
             event.stopPropagation();
+
             const now = Date.now();
-            if (now - this.lastPressTs < 350) { return; }
+            if (now - this.lastPressTs < 350) {
+                return;
+            }
             this.lastPressTs = now;
-            this.audio.currentTime = 0;
-            this.audio.play().catch(() => {});
+
+            if (this.audio.paused) {
+                this.audio.currentTime = 0;
+                this.audio.play().catch(() => {});
+            } else {
+                this._stopAudio();
+            }
+
+            this._syncAudioButtonLabel();
         };
+
         if (this.audioBtn) {
             this.audioBtn.addEventListener('pointerup', this._handleAudioButtonPress);
             this.audioBtn.addEventListener('click', this._handleAudioButtonPress);
             this.audioBtn.addEventListener('touchend', this._handleAudioButtonPress, { passive: false });
         }
-        this._showAudioButton();
 
-        /* ── Estado ── */
-        this.lastState = 'far';   /* 'near' | 'far' */
-        this.THRESHOLD = 0.28;    /* unidades do mundo */
+        this._syncAudioButtonLabel();
 
-        /* ── Rotação acumulada para spin ── */
+        this.lastState = 'far';
+        this.THRESHOLD = 0.28;
         this.spinX = 0;
         this.spinY = 0;
         this.spinZ = 0;
-
-        /* ── Tempo para flutuação ── */
         this.floatTime = 0;
-
-        /* ── Vetores THREE reutilizáveis ── */
-        this.posHiro  = new THREE.Vector3();
+        this.posHiro = new THREE.Vector3();
         this.posKanji = new THREE.Vector3();
 
-        /* Estado global de interação por toque */
         window.ARTouchState = window.ARTouchState || {
             isInteracting: false,
             target: null
@@ -79,23 +67,17 @@ AFRAME.registerComponent('interaction-detector', {
     },
 
     tick: function (time, deltaTime) {
-
-        /* Limitar delta para evitar saltos após app em background */
         const dt = Math.min(deltaTime, 100) / 1000;
-
-        const hiroVisible  = this.hiroMarker.object3D.visible;
+        const hiroVisible = this.hiroMarker.object3D.visible;
         const kanjiVisible = this.kanjiMarker.object3D.visible;
-
         const touchState = window.ARTouchState;
         const livroUnderTouch = !!(touchState && touchState.isInteracting && touchState.target === 'livro');
 
-        /* Livro fora de cena — nada a animar */
         if (!kanjiVisible) {
             this._setFarState();
             return;
         }
 
-        /* Só o livro visível — flutua */
         if (!hiroVisible) {
             this._setFarState();
             if (!livroUnderTouch) {
@@ -104,19 +86,13 @@ AFRAME.registerComponent('interaction-detector', {
             return;
         }
 
-        /* Ambos visíveis — calcular distância real entre marcadores */
         this.hiroMarker.object3D.getWorldPosition(this.posHiro);
         this.kanjiMarker.object3D.getWorldPosition(this.posKanji);
         const dist = this.posHiro.distanceTo(this.posKanji);
 
         if (dist < this.THRESHOLD) {
-
-            /* ════ ESTADO PRÓXIMO ════ */
             if (this.lastState !== 'near') {
-                this.lastState   = 'near';
-
-                /* Sincroniza ângulos de spin com a rotação atual
-                     para evitar salto visual na transição */
+                this.lastState = 'near';
                 const rot = this.livroEl.getAttribute('rotation');
                 this.spinX = rot.x;
                 this.spinY = rot.y;
@@ -126,10 +102,7 @@ AFRAME.registerComponent('interaction-detector', {
             if (!livroUnderTouch) {
                 this._doSpin(dt);
             }
-
         } else {
-
-            /* ════ ESTADO DISTANTE ════ */
             if (this.lastState === 'near') {
                 this._setFarState();
             }
@@ -140,14 +113,11 @@ AFRAME.registerComponent('interaction-detector', {
         }
     },
 
-    _showAudioButton: function () {
+    _syncAudioButtonLabel: function () {
         if (!this.audioBtn) { return; }
-        this.audioBtn.classList.remove('is-hidden');
-    },
-
-    _hideAudioButton: function () {
-        if (!this.audioBtn) { return; }
-        this.audioBtn.classList.remove('is-hidden');
+        const isPlaying = !this.audio.paused;
+        this.audioBtn.textContent = isPlaying ? '⏹️ Parar História' : '🔊 Ouvir História';
+        this.audioBtn.setAttribute('aria-label', isPlaying ? 'Parar História' : 'Ouvir História');
     },
 
     _stopAudio: function () {
@@ -155,22 +125,22 @@ AFRAME.registerComponent('interaction-detector', {
             this.audio.pause();
         }
         this.audio.currentTime = 0;
+        this._syncAudioButtonLabel();
     },
 
     _setFarState: function () {
         if (this.lastState === 'near') {
             this._stopAudio();
-            /* Reinicia fase da flutuação para começar suave */
             this.floatTime = 0;
         }
         this.lastState = 'far';
     },
 
-    /* Rotação contínua em X, Y e Z */
     _doSpin: function (dt) {
-        this.spinX += 80  * dt;   /* graus/s */
+        this.spinX += 80 * dt;
         this.spinY += 120 * dt;
-        this.spinZ += 60  * dt;
+        this.spinZ += 60 * dt;
+
         this.livroEl.setAttribute('rotation', {
             x: this.spinX,
             y: this.spinY,
@@ -178,7 +148,6 @@ AFRAME.registerComponent('interaction-detector', {
         });
     },
 
-    /* Flutuação suave em Y */
     _doFloat: function (dt) {
         this.floatTime += dt;
         const floatY = Math.sin(this.floatTime * 1.8) * 0.12;
@@ -189,368 +158,293 @@ AFRAME.registerComponent('interaction-detector', {
             z: pos.z
         });
     }
-
 });
 </script>
-
 </head>
-
 <body>
+<button id="audioBtn" class="audio-btn" type="button" aria-label="Ouvir História">🔊 Ouvir História</button>
 
-<button id="audioBtn" class="audio-btn" type="button" aria-label="Ouvir História">
-🔊 Ouvir História
-</button>
+<a-scene embedded vr-mode-ui="enabled:false" renderer="logarithmicDepthBuffer:true;" arjs="sourceType:webcam; debugUIEnabled:false;" interaction-detector>
+    <a-marker preset="hiro">
+        <a-entity id="ze" gltf-model="./ZeAlencar.glb" position="0 0 0" rotation="0 0 0" scale="2 2 2"></a-entity>
+    </a-marker>
 
-<a-scene
-embedded
-vr-mode-ui="enabled:false"
-renderer="logarithmicDepthBuffer:true;"
-arjs="sourceType:webcam; debugUIEnabled:false;"
-interaction-detector>
+    <a-marker preset="kanji">
+        <a-entity id="livro" gltf-model="./livro.glb" position="0 0 0" rotation="0 0 0" scale="2 2 2"></a-entity>
+    </a-marker>
 
-<a-marker preset="hiro">
-
-<a-entity
-id="ze"
-gltf-model="./ZeAlencar.glb"
-position="0 0 0"
-rotation="0 0 0"
-scale="2 2 2"> </a-entity>
-
-</a-marker>
-
-<a-marker preset="kanji">
-
-<a-entity
-id="livro"
-gltf-model="./livro.glb"
-position="0 0 0"
-rotation="0 0 0"
-scale="2 2 2"> </a-entity>
-
-</a-marker>
-
-<a-entity camera></a-entity>
-
-<a-light
-type="ambient"
-intensity="1.2"> </a-light>
-
-<a-light
-type="directional"
-position="1 2 1"
-intensity="1"> </a-light>
-
+    <a-entity camera></a-entity>
+    <a-light type="ambient" intensity="1.2"></a-light>
+    <a-light type="directional" position="1 2 1" intensity="1"></a-light>
 </a-scene>
 
 <script>
-
-const ze = document.querySelector("#ze");
-const livro = document.querySelector("#livro");
-const sceneEl = document.querySelector("a-scene");
-const cameraEl = document.querySelector("a-entity[camera]");
+const ze = document.querySelector('#ze');
+const livro = document.querySelector('#livro');
+const sceneEl = document.querySelector('a-scene');
+const cameraEl = document.querySelector('a-entity[camera]');
 
 const raycaster = new THREE.Raycaster();
 const touchNDC = new THREE.Vector2();
 
 let activeModel = null;
-
-let lastSingleX = 0;
-let lastSingleY = 0;
-
-let lastCenterX = 0;
-let lastCenterY = 0;
-let lastDistance = 0;
-let lastAngle = 0;
+const gestureState = {
+    singleX: 0,
+    singleY: 0,
+    centerX: 0,
+    centerY: 0,
+    distance: 0,
+    angle: 0
+};
 
 window.ARTouchState = window.ARTouchState || {
-isInteracting:false,
-target:null
+    isInteracting: false,
+    target: null
 };
 
-function getDistance(t1, t2){
-
-const dx = t2.clientX - t1.clientX;
-const dy = t2.clientY - t1.clientY;
-
-return Math.sqrt(dx * dx + dy * dy);
+function getDistance(t1, t2) {
+    const dx = t2.clientX - t1.clientX;
+    const dy = t2.clientY - t1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
 }
 
-function getCenter(t1, t2){
-return {
-x:(t1.clientX + t2.clientX)/2,
-y:(t1.clientY + t2.clientY)/2
-};
+function getCenter(t1, t2) {
+    return {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+    };
 }
 
-function getAngle(t1, t2){
-return Math.atan2(
-t2.clientY - t1.clientY,
-t2.clientX - t1.clientX
-);
+function getAngle(t1, t2) {
+    return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
 }
 
-function normalizeAngleDelta(delta){
-if(delta > Math.PI) return delta - (Math.PI * 2);
-if(delta < -Math.PI) return delta + (Math.PI * 2);
-return delta;
+function normalizeAngleDelta(delta) {
+    if (delta > Math.PI) return delta - (Math.PI * 2);
+    if (delta < -Math.PI) return delta + (Math.PI * 2);
+    return delta;
 }
 
-function setTouchState(model, isInteracting){
-window.ARTouchState.isInteracting = isInteracting;
-window.ARTouchState.target =
-isInteracting && model ? model.getAttribute("id") : null;
+function setTouchState(model, isInteracting) {
+    window.ARTouchState.isInteracting = isInteracting;
+    window.ARTouchState.target = isInteracting && model ? model.getAttribute('id') : null;
 }
 
-function getTouchedModel(x, y){
-
-if(!sceneEl || !cameraEl || !sceneEl.canvas){
-return null;
+function isAudioControlEventTarget(event) {
+    return !!(event.target && event.target.closest && event.target.closest('#audioBtn'));
 }
 
-const camera = cameraEl.getObject3D("camera");
-if(!camera){
-return null;
+function getTouchedModel(x, y) {
+    if (!sceneEl || !cameraEl || !sceneEl.canvas) {
+        return null;
+    }
+
+    const camera = cameraEl.getObject3D('camera');
+    if (!camera) {
+        return null;
+    }
+
+    const canvasRect = sceneEl.canvas.getBoundingClientRect();
+    if (canvasRect.width === 0 || canvasRect.height === 0) {
+        return null;
+    }
+
+    touchNDC.x = ((x - canvasRect.left) / canvasRect.width) * 2 - 1;
+    touchNDC.y = -(((y - canvasRect.top) / canvasRect.height) * 2 - 1);
+
+    raycaster.setFromCamera(touchNDC, camera);
+
+    const visibleTargets = [];
+    if (ze.object3D.visible) visibleTargets.push(ze.object3D);
+    if (livro.object3D.visible) visibleTargets.push(livro.object3D);
+
+    if (visibleTargets.length === 0) {
+        return null;
+    }
+
+    const intersections = raycaster.intersectObjects(visibleTargets, true);
+    if (intersections.length === 0) {
+        return null;
+    }
+
+    let node = intersections[0].object;
+    while (node) {
+        if (node === ze.object3D) return ze;
+        if (node === livro.object3D) return livro;
+        node = node.parent;
+    }
+
+    return null;
 }
 
-const canvasRect = sceneEl.canvas.getBoundingClientRect();
-if(canvasRect.width === 0 || canvasRect.height === 0){
-return null;
+function pickModelFromTouches(touches) {
+    if (!touches || touches.length === 0) {
+        return null;
+    }
+
+    if (touches.length >= 2) {
+        const center = getCenter(touches[0], touches[1]);
+        return getTouchedModel(center.x, center.y) ||
+            getTouchedModel(touches[0].clientX, touches[0].clientY) ||
+            getTouchedModel(touches[1].clientX, touches[1].clientY);
+    }
+
+    return getTouchedModel(touches[0].clientX, touches[0].clientY);
 }
 
-touchNDC.x = ((x - canvasRect.left) / canvasRect.width) * 2 - 1;
-touchNDC.y = -(((y - canvasRect.top) / canvasRect.height) * 2 - 1);
+function syncGestureFromTouches(touches) {
+    if (!touches || touches.length === 0) {
+        return;
+    }
 
-raycaster.setFromCamera(touchNDC, camera);
+    if (touches.length === 1) {
+        gestureState.singleX = touches[0].clientX;
+        gestureState.singleY = touches[0].clientY;
+        return;
+    }
 
-const visibleTargets = [];
-if(ze.object3D.visible){
-visibleTargets.push(ze.object3D);
-}
-if(livro.object3D.visible){
-visibleTargets.push(livro.object3D);
-}
+    const t1 = touches[0];
+    const t2 = touches[1];
+    const center = getCenter(t1, t2);
 
-if(visibleTargets.length === 0){
-return null;
-}
-
-const intersections = raycaster.intersectObjects(visibleTargets, true);
-if(intersections.length === 0){
-return null;
-}
-
-const hit = intersections[0].object;
-
-let node = hit;
-while(node){
-if(node === ze.object3D){
-return ze;
-}
-if(node === livro.object3D){
-return livro;
-}
-node = node.parent;
+    gestureState.centerX = center.x;
+    gestureState.centerY = center.y;
+    gestureState.distance = getDistance(t1, t2);
+    gestureState.angle = getAngle(t1, t2);
 }
 
-return null;
+function applySingleFingerGesture(touch, model) {
+    const currentX = touch.clientX;
+    const currentY = touch.clientY;
+    const deltaX = currentX - gestureState.singleX;
+    const deltaY = currentY - gestureState.singleY;
+    const rot = model.getAttribute('rotation');
+
+    model.setAttribute('rotation', {
+        x: rot.x - deltaY * 0.35,
+        y: rot.y + deltaX * 0.35,
+        z: rot.z
+    });
+
+    gestureState.singleX = currentX;
+    gestureState.singleY = currentY;
 }
 
-function pickModelFromTouches(touches){
-if(!touches || touches.length === 0){
-return null;
+function applyTwoFingerGesture(t1, t2, model) {
+    const center = getCenter(t1, t2);
+    const distance = getDistance(t1, t2);
+    const angle = getAngle(t1, t2);
+
+    const deltaCenterX = (center.x - gestureState.centerX) * 0.0022;
+    const deltaCenterY = (center.y - gestureState.centerY) * 0.0022;
+    const deltaAngle = normalizeAngleDelta(angle - gestureState.angle);
+
+    const pos = model.getAttribute('position');
+    const rot = model.getAttribute('rotation');
+    const scale = model.getAttribute('scale');
+
+    let scaleFactor = 1;
+    if (gestureState.distance > 0) {
+        scaleFactor = distance / gestureState.distance;
+    }
+
+    let newScale = scale.x * scaleFactor;
+    newScale = Math.max(0.5, Math.min(newScale, 8));
+
+    model.setAttribute('position', {
+        x: pos.x + deltaCenterX,
+        y: pos.y - deltaCenterY,
+        z: pos.z
+    });
+
+    model.setAttribute('rotation', {
+        x: rot.x,
+        y: rot.y,
+        z: rot.z + (deltaAngle * 180 / Math.PI)
+    });
+
+    model.setAttribute('scale', {
+        x: newScale,
+        y: newScale,
+        z: newScale
+    });
+
+    gestureState.centerX = center.x;
+    gestureState.centerY = center.y;
+    gestureState.distance = distance;
+    gestureState.angle = angle;
 }
 
-if(touches.length >= 2){
-const center = getCenter(touches[0], touches[1]);
-return (
-getTouchedModel(center.x, center.y) ||
-getTouchedModel(touches[0].clientX, touches[0].clientY) ||
-getTouchedModel(touches[1].clientX, touches[1].clientY)
-);
+function handleTouchStart(e) {
+    if (isAudioControlEventTarget(e)) return;
+
+    activeModel = pickModelFromTouches(e.touches);
+    if (!activeModel) return;
+
+    setTouchState(activeModel, true);
+    syncGestureFromTouches(e.touches);
 }
 
-return getTouchedModel(touches[0].clientX, touches[0].clientY);
+function handleTouchMove(e) {
+    if (isAudioControlEventTarget(e)) return;
+
+    e.preventDefault();
+
+    if (!activeModel && e.touches.length > 0) {
+        activeModel = pickModelFromTouches(e.touches);
+    }
+
+    if (!activeModel) {
+        setTouchState(null, false);
+        return;
+    }
+
+    setTouchState(activeModel, true);
+
+    if (e.touches.length === 1) {
+        applySingleFingerGesture(e.touches[0], activeModel);
+    }
+
+    if (e.touches.length >= 2) {
+        applyTwoFingerGesture(e.touches[0], e.touches[1], activeModel);
+    }
 }
 
-function isAudioControlEventTarget(event){
-return !!(
-event.target &&
-event.target.closest &&
-event.target.closest("#audioBtn")
-);
+function handleTouchEnd(e) {
+    if (isAudioControlEventTarget(e)) return;
+
+    if (e.touches.length === 0) {
+        setTouchState(null, false);
+        activeModel = null;
+        return;
+    }
+
+    syncGestureFromTouches(e.touches);
 }
 
-document.addEventListener("touchstart",(e)=>{
+document.addEventListener('touchstart', handleTouchStart, { passive: false });
+document.addEventListener('touchmove', handleTouchMove, { passive: false });
+document.addEventListener('touchend', handleTouchEnd, { passive: false });
+document.addEventListener('touchcancel', () => {
+    setTouchState(null, false);
+    activeModel = null;
+}, { passive: false });
 
-if(isAudioControlEventTarget(e)) return;
-
-activeModel = pickModelFromTouches(e.touches);
-
-if(!activeModel) return;
-
-setTouchState(activeModel, true);
-
-if(e.touches.length === 1){
-
-lastSingleX = e.touches[0].clientX;
-lastSingleY = e.touches[0].clientY;
-
-}
-
-if(e.touches.length >= 2){
-
-const t1 = e.touches[0];
-const t2 = e.touches[1];
-const center = getCenter(t1, t2);
-
-lastCenterX = center.x;
-lastCenterY = center.y;
-lastDistance = getDistance(t1, t2);
-lastAngle = getAngle(t1, t2);
-
-}
-
-
-},{passive:false});
-
-document.addEventListener("touchmove",(e)=>{
-
-if(isAudioControlEventTarget(e)) return;
-
-e.preventDefault();
-
-if(!activeModel && e.touches.length > 0){
-activeModel = pickModelFromTouches(e.touches);
-}
-
-if(!activeModel){
-setTouchState(null, false);
-return;
-}
-
-setTouchState(activeModel, true);
-
-if(e.touches.length === 1){
-
-const currentX = e.touches[0].clientX;
-const currentY = e.touches[0].clientY;
-
-const deltaX = currentX - lastSingleX;
-const deltaY = currentY - lastSingleY;
-
-const rot = activeModel.getAttribute("rotation");
-
-activeModel.setAttribute("rotation",{
-x: rot.x - deltaY * 0.35,
-y: rot.y + deltaX * 0.35,
-z: rot.z
+ze.addEventListener('model-loaded', () => {
+    console.log('ZeAlencar carregado');
 });
 
-lastSingleX = currentX;
-lastSingleY = currentY;
-}
-
-if(e.touches.length >= 2){
-
-const t1 = e.touches[0];
-const t2 = e.touches[1];
-
-const center = getCenter(t1, t2);
-const distance = getDistance(t1, t2);
-const angle = getAngle(t1, t2);
-
-const deltaCenterX = (center.x - lastCenterX) * 0.0022;
-const deltaCenterY = (center.y - lastCenterY) * 0.0022;
-const deltaAngle = normalizeAngleDelta(angle - lastAngle);
-
-const pos = activeModel.getAttribute("position");
-const rot = activeModel.getAttribute("rotation");
-const scale = activeModel.getAttribute("scale");
-
-let scaleFactor = 1;
-if(lastDistance > 0){
-scaleFactor = distance / lastDistance;
-}
-
-let newScale = scale.x * scaleFactor;
-newScale = Math.max(0.5, Math.min(newScale, 8));
-
-activeModel.setAttribute("position",{
-x: pos.x + deltaCenterX,
-y: pos.y - deltaCenterY,
-z: pos.z
+livro.addEventListener('model-loaded', () => {
+    console.log('Livro carregado');
 });
 
-activeModel.setAttribute("rotation",{
-x: rot.x,
-y: rot.y,
-z: rot.z + (deltaAngle * 180 / Math.PI)
+ze.addEventListener('model-error', (e) => {
+    console.error('Erro ZeAlencar', e);
 });
 
-activeModel.setAttribute("scale",{
-x: newScale,
-y: newScale,
-z: newScale
+livro.addEventListener('model-error', (e) => {
+    console.error('Erro Livro', e);
 });
-
-lastCenterX = center.x;
-lastCenterY = center.y;
-lastDistance = distance;
-lastAngle = angle;
-}
-
-},{passive:false});
-
-document.addEventListener("touchend",(e)=>{
-
-if(isAudioControlEventTarget(e)) return;
-
-if(e.touches.length === 0){
-setTouchState(null, false);
-activeModel = null;
-return;
-}
-
-if(e.touches.length === 1){
-lastSingleX = e.touches[0].clientX;
-lastSingleY = e.touches[0].clientY;
-}
-
-if(e.touches.length >= 2){
-const t1 = e.touches[0];
-const t2 = e.touches[1];
-const center = getCenter(t1, t2);
-lastCenterX = center.x;
-lastCenterY = center.y;
-lastDistance = getDistance(t1, t2);
-lastAngle = getAngle(t1, t2);
-}
-
-},{passive:false});
-
-document.addEventListener("touchcancel",()=>{
-setTouchState(null, false);
-activeModel = null;
-},{passive:false});
-
-ze.addEventListener("model-loaded",()=>{
-console.log("ZeAlencar carregado");
-});
-
-livro.addEventListener("model-loaded",()=>{
-console.log("Livro carregado");
-});
-
-ze.addEventListener("model-error",(e)=>{
-console.error("Erro ZeAlencar",e);
-});
-
-livro.addEventListener("model-error",(e)=>{
-console.error("Erro Livro",e);
-});
-
 </script>
-
 </body>
 </html>
