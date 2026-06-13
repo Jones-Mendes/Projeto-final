@@ -22,6 +22,11 @@ A aplicacao utiliza marcadores AR para apresentar dois modelos 3D na cena:
 
 Quando os marcadores sao reconhecidos, os elementos aparecem no ambiente fisico e podem ser manipulados diretamente pelo usuario por toque.
 
+<img width="282" height="417" alt="image" src="https://github.com/user-attachments/assets/41b9a93e-d391-4e7a-85a2-8aed8b566208" />
+
+<img width="397" height="407" alt="image" src="https://github.com/user-attachments/assets/fa35ef22-33bb-4ef7-b8bd-dc89654a4a8e" />
+
+
 ## Funcionalidades Principais
 ### 1. Reconhecimento por Marcadores (AR.js + A-Frame)
 - leitura de marcadores `hiro` e `kanji`;
@@ -87,4 +92,5 @@ Este trabalho demonstra a aplicacao integrada dos conceitos do curso:
 **Projeto Final do Curso de RA - iRede**  
 Professor: **Alysson Diniz**  
 Monitores: **Maisa Lourenco** e **Rister Saulo**
+
 Aluno: **Jones de Oliveira Mendes**
