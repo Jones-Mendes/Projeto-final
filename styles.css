@@ -1,3 +1,4 @@
+/* Layout principal da experiência: tela cheia e sem barras de rolagem */
 html,
 body{
     margin:0;
@@ -12,6 +13,7 @@ canvas{
     touch-action:none;
 }
 
+/* Estilo do botão de áudio para ficar visível e acessível na tela */
 .audio-btn{
     position:fixed;
     left:50%;

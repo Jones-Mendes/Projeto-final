@@ -8,6 +8,11 @@
 <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 <script>
+// ------------------------------------------------------------
+// Componente principal da experiência AR
+// Responsável por: detectar marcadores, controlar áudio e
+// animar o modelo quando os marcadores estão próximos.
+// ------------------------------------------------------------
 AFRAME.registerComponent('interaction-detector', {
     init: function () {
         this.hiroMarker = document.querySelectorAll('a-marker')[0];
@@ -162,8 +167,10 @@ AFRAME.registerComponent('interaction-detector', {
 </script>
 </head>
 <body>
+<!-- Botão de controle de áudio da apresentação AR -->
 <button id="audioBtn" class="audio-btn" type="button" aria-label="Ouvir História">🔊 Ouvir História</button>
 
+<!-- Cena AR principal: marcadores Hiro e Kanji + câmera -->
 <a-scene embedded vr-mode-ui="enabled:false" renderer="logarithmicDepthBuffer:true;" arjs="sourceType:webcam; debugUIEnabled:false;" interaction-detector>
     <a-marker preset="hiro">
         <a-entity id="ze" gltf-model="./ZeAlencar.glb" position="0 0 0" rotation="0 0 0" scale="2 2 2"></a-entity>
@@ -179,6 +186,10 @@ AFRAME.registerComponent('interaction-detector', {
 </a-scene>
 
 <script>
+// ------------------------------------------------------------
+// Lógica de interação por toque para movimentar, girar e
+// ampliar os modelos 3D na cena AR.
+// ------------------------------------------------------------
 const ze = document.querySelector('#ze');
 const livro = document.querySelector('#livro');
 const sceneEl = document.querySelector('a-scene');
@@ -202,6 +213,7 @@ window.ARTouchState = window.ARTouchState || {
     target: null
 };
 
+// Funções auxiliares para calcular gesto com 1 ou 2 dedos.
 function getDistance(t1, t2) {
     const dx = t2.clientX - t1.clientX;
     const dy = t2.clientY - t1.clientY;
@@ -375,6 +387,7 @@ function applyTwoFingerGesture(t1, t2, model) {
     gestureState.angle = angle;
 }
 
+// Início do toque na tela: identifica qual modelo foi tocado.
 function handleTouchStart(e) {
     if (isAudioControlEventTarget(e)) return;
 
@@ -385,6 +398,7 @@ function handleTouchStart(e) {
     syncGestureFromTouches(e.touches);
 }
 
+// Movimento do dedo: aplica rotação, translação e zoom no modelo selecionado.
 function handleTouchMove(e) {
     if (isAudioControlEventTarget(e)) return;
 
@@ -410,6 +424,7 @@ function handleTouchMove(e) {
     }
 }
 
+// Fim do toque: libera o modelo e encerra o estado de interação.
 function handleTouchEnd(e) {
     if (isAudioControlEventTarget(e)) return;
 
